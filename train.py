@@ -6,7 +6,7 @@ from runner import train, eval
 
 def parse():
     parser = argparse.ArgumentParser("Occupancy Networks")
-    parser.add_argument("--state", type=str, default="train", choices=["train", "eval", "sample"],
+    parser.add_argument("--state", type=str, default="train", choices=["train", "eval"],
                         help="train or eval the network")
 
     # configuration
@@ -30,4 +30,6 @@ if __name__ == "__main__":
     config.update(vars(args))
 
     if config["state"] == "train":
-        train()
+        train(config)
+    elif config["state"] == "eval":
+        eval(config)
