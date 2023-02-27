@@ -1,7 +1,8 @@
 import argparse
 import json
+import torch
 
-from runner import train, eval
+from runner import train, eval, Dict
 
 
 def parse():
@@ -23,11 +24,15 @@ def parse():
 
 
 if __name__ == "__main__":
+    # config and args
     args = parse()
     with open(args.config) as file:
-        config = dict(json.load(file))
+        config = Dict(json.load(file))
     
     config.update(vars(args))
+
+    # init
+    torch.manual_seed(0)
 
     if config["state"] == "train":
         train(config)
