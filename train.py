@@ -5,9 +5,9 @@ import torch
 from runner import train, eval, Dict
 
 
-def parse():
+def parse_args_and_config():
     parser = argparse.ArgumentParser("Occupancy Networks")
-    parser.add_argument("--state", type=str, default="train", choices=["train", "eval"],
+    parser.add_argument("--mode", type=str, default="train", choices=["train", "eval"],
                         help="train or eval the network")
 
     # configuration
@@ -20,21 +20,23 @@ def parse():
     parser.add_argument("--device", type=str, default="cuda:0", help="use cuda or cpu")
 
     args = parser.parse_args()
-    return args
 
-
-if __name__ == "__main__":
-    # config and args
-    args = parse()
     with open(args.config) as file:
         config = Dict(json.load(file))
     
     config.update(vars(args))
 
+    return config
+
+
+if __name__ == "__main__":
+    # config and args
+    config = parse_args_and_config()
+
     # init
     torch.manual_seed(0)
 
-    if config["state"] == "train":
+    if config.mode == "train":
         train(config)
-    elif config["state"] == "eval":
+    elif config.mode == "eval":
         eval(config)

@@ -1,20 +1,14 @@
 {
     "num_workers": 4,
-    "num_epochs": 90,
-    "lr": 0.1,
-    "lr_milestones": [
-        30,
-        60,
-        80
-    ],
-    "lr_gamma": 0.1,
-    "momentum": 0.9,
-    "local_batch_size": 32,
-    "batch_milestones": [],
-    "batch_gamma": 10.0,
-    "weight_decay": 0.0001,
+    "num_epochs": 100,
+    "lr": 1e-4,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "batch_size": 32,
+    "num_samples": 1000,
+    "dataset": "shapenet",
     "checkpoint_directory": "./ckpt/",
-    "event_directory": "./event/",
+    "event_directory": "./log",
     "train_root": "/mnt/data/logan/ShapeNet/",
     "val_root": "/mnt/data/logan/ShapeNet/"
 }

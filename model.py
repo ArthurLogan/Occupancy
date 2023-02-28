@@ -1,5 +1,23 @@
 import torch
 from torch import nn
+from torchvision import models
+
+
+# use resnet18 for image encoding
+class SingleImageEncoder(nn.Module):
+    def __init__(self):
+        super().__init__()
+        model = models.resnet18(weights='DEFAULT')
+        self.encoder = nn.Sequential(*(list(model.children())[:-1]))
+        self.fc = nn.Linear(512, 256)
+
+    def forward(self, x):
+        """Image Encoding
+            x: [B, C, H, W] -> [B, 256, 1]
+        """
+        x = self.encoder(x).view(x.shape[0], 512)
+        x = self.fc(x).view(x.shape[0], 256, -1)
+        return x
 
 
 # adaptive batch normalization
@@ -35,8 +53,10 @@ class AdaResBlock(nn.Module):
         ))
     
     def forward(self, x, cond):
-        """[B, Cin N] -> [B, Cout, N]"""
-
+        """conditional residual block
+            x: [B, Cin N] -> [B, Cout, N]
+            cond: [B, 1000, 1]
+        """
         # first block
         h = self.first_block.norm(x, cond)
         h = self.first_block.relu(h)
@@ -59,16 +79,23 @@ class AdaDecoder(nn.Module):
         self.resblocks = nn.ModuleList([
             AdaResBlock(**cond_param) for cond_param in cond_params
         ])
+        self.norm = AdaBatchNorm(cond_params[-1].cond_channels, cond_params[-1].out_channels)
         self.conv = nn.Sequential(
-            AdaBatchNorm(cond_params[-1].cond_channels, cond_params[-1].out_channels),
             nn.ReLU(),
             nn.Conv1d(**conv_param)
         )
     
     def forward(self, x, cond):
-        """[B, 3, N] -> [B, 1, N] from position to occupancy"""
+        """from position to occupancy
+            x: [B, 3, N] -> [B, N]
+            cond: [B, N]
+        """
+        assert len(x.shape) == 3
+        B, _, N = x.shape
         x = self.embedder(x)
         for resblock in self.resblocks:
             x = resblock(x, cond)
+        x = self.norm(x, cond)
         x = self.conv(x)
+        x = x.view(B, N)
         return x
