@@ -68,8 +68,8 @@ def train(config):
     ])
 
     # summary
-    os.makedirs(config.event_directory, exist_ok=True)
-    summary_writer = SummaryWriter(config.event_directory)
+    os.makedirs(config.log_dir, exist_ok=True)
+    summary_writer = SummaryWriter(config.log_dir)
 
     last_epoch = -1
     global_step = 0
@@ -108,7 +108,10 @@ def train(config):
                 global_step += 1
 
     summary_writer.close()
-            
+
+    os.makedirs(config.ckpt_dir, exist_ok=True)
+    torch.save(encoder.state_dict(), os.path.join(config.ckpt_dir, f"encoder_ckpt_{global_step}_.pt"))
+    torch.save(decoder.state_dict(), os.path.join(config.ckpt_dir, f"decoder_ckpt_{global_step}_.pt"))   
 
 
 def eval(config):
