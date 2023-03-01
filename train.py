@@ -7,14 +7,20 @@ from runner import train, eval, Dict
 
 def parse_args_and_config():
     parser = argparse.ArgumentParser("Occupancy Networks")
-    parser.add_argument("--mode", type=str, default="train", choices=["train", "eval"],
+    parser.add_argument("--mode", type=str, default="train", choices=["train", "val", "test"],
                         help="train or eval the network")
 
     # configuration
-    parser.add_argument("--config", type=str, default="config/default.json", help="path to config file")
+    parser.add_argument("--config", type=str, default="config/train.json", help="path to config file")
+
+    # test time
+    parser.add_argument("--test_time", type=int, default=1000, help="interval to test validation set")
 
     # directory configuration
-    parser.add_argument("--ckpt", type=str, default="", help="ckpt name for use")
+    parser.add_argument("--ckpt_name", type=str, default="", help="ckpt name for use")
+
+    # evaluation configuration
+    parser.add_argument("--threshold", type=float, default=0.3, help="threshold to decide occupancy")
 
     # device configuration
     parser.add_argument("--device", type=str, default="cuda:0", help="use cuda or cpu")
@@ -38,5 +44,5 @@ if __name__ == "__main__":
 
     if config.mode == "train":
         train(config)
-    elif config.mode == "eval":
+    elif config.mode == "test":
         eval(config)

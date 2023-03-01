@@ -1,0 +1,13 @@
+{
+    "num_workers": 4,
+    "num_epochs": 2000,
+    "lr": 1e-4,
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "batch_size": 96,
+    "num_samples": 2048,
+    "dataset": "shapenet",
+    "ckpt_dir": "./ckpt",
+    "log_dir": "./log",
+    "data_dir": "/mnt/data/logan/ShapeNet"
+}

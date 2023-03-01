@@ -1,0 +1,9 @@
+{
+    "num_workers": 4,
+    "batch_size": 1,
+    "num_samples": 100000,
+    "dataset": "shapenet",
+    "ckpt_dir": "./ckpt",
+    "log_dir": "./log",
+    "data_dir": "/mnt/data/logan/ShapeNet"
+}
