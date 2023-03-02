@@ -55,7 +55,7 @@ def train(config):
     ).to(device)
 
     # loss function
-    criterion = nn.CrossEntropyLoss(reduction="mean").to(device)
+    criterion = nn.BCELoss(reduction='mean').to(device)
     # optimizer
     optimizer = optim.Adam([
         dict(
@@ -80,6 +80,8 @@ def train(config):
 
     last_epoch = -1
     global_step = 0
+    best_iou = 0
+    best_step = 0
     for epoch in range(last_epoch + 1, config.num_epochs):
 
         encoder.train()
@@ -124,13 +126,29 @@ def train(config):
                     logits = decoder(positions, conditions)
                     loss = criterion(logits, occupancies)
 
+                    avg_iou = IoU(logits, occupancies).mean()
+
                     summary_writer.add_scalars(
                         main_tag='loss',
                         tag_scalar_dict=dict(validating=loss),
                         global_step=global_step
                     )
 
+                    summary_writer.add_scalars(
+                        main_tag='IoU',
+                        tag_scalar_dict=dict(validating=avg_iou),
+                        global_step=global_step
+                    )
+                    print(f"[Val] Loss {loss.item(): .4f}, IoU {avg_iou: .2f}")
+
+                    if best_iou < avg_iou:
+                        best_iou = avg_iou
+                        best_step = global_step
+                        torch.save(encoder.state_dict(), os.path.join(config.ckpt_dir, "encoder_ckpt_best_.pt"))
+                        torch.save(decoder.state_dict(), os.path.join(config.ckpt_dir, "decoder_ckpt_best_.pt"))
+
     summary_writer.close()
+    print(f"Best Step {best_step}, Best IoU {best_iou}")
 
     os.makedirs(config.ckpt_dir, exist_ok=True)
     torch.save(encoder.state_dict(), os.path.join(config.ckpt_dir, f"encoder_ckpt_{global_step}_.pt"))

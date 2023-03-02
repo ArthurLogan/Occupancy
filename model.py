@@ -82,7 +82,8 @@ class AdaDecoder(nn.Module):
         self.norm = AdaBatchNorm(cond_params[-1].cond_channels, cond_params[-1].out_channels)
         self.conv = nn.Sequential(
             nn.ReLU(),
-            nn.Conv1d(**conv_param)
+            nn.Conv1d(**conv_param),
+            nn.Sigmoid()
         )
     
     def forward(self, x, cond):
