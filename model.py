@@ -8,15 +8,17 @@ class SingleImageEncoder(nn.Module):
     def __init__(self):
         super().__init__()
         model = models.resnet18(weights='DEFAULT')
-        self.encoder = nn.Sequential(*(list(model.children())[:-1]))
-        self.fc = nn.Linear(512, 256)
+        self.encoder = nn.Sequential(
+            *(list(model.children())[:-1]),
+            nn.Conv2d(512, 256, kernel_size=1)
+        )
 
     def forward(self, x):
         """Image Encoding
             x: [B, C, H, W] -> [B, 256, 1]
         """
-        x = self.encoder(x).view(x.shape[0], 512)
-        x = self.fc(x).view(x.shape[0], 256, -1)
+        B, C = x.shape[0], 256
+        x = self.encoder(x).view(B, C, 1)
         return x
 
 
@@ -55,7 +57,7 @@ class AdaResBlock(nn.Module):
     def forward(self, x, cond):
         """conditional residual block
             x: [B, Cin N] -> [B, Cout, N]
-            cond: [B, 1000, 1]
+            cond: [B, Ccond, 1]
         """
         # first block
         h = self.first_block.norm(x, cond)
@@ -97,6 +99,5 @@ class AdaDecoder(nn.Module):
         for resblock in self.resblocks:
             x = resblock(x, cond)
         x = self.norm(x, cond)
-        x = self.conv(x)
-        x = x.view(B, N)
+        x = self.conv(x).squeeze()
         return x

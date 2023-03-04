@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from model import AdaDecoder, SingleImageEncoder
 from dataset import load_dataset
-from metric import IoU
+from metric import Metric
 
 
 # convert dict to var
@@ -27,10 +27,9 @@ def train(config):
     # device
     device = torch.device(config.device)
     # dataset
-    train_dataset, train_loader = load_dataset(config, mode="train")
-    valid_dataset, valid_loader = load_dataset(config, mode="val")
-
-    print(len(train_dataset), len(valid_dataset))
+    train_data, train_loader = load_dataset(config, mode="train")
+    valid_data, valid_loader = load_dataset(config, mode="val")
+    print(f"train {len(train_data)} valid {len(valid_data)}")
 
     # model
     encoder = SingleImageEncoder().to(device)
@@ -73,93 +72,110 @@ def train(config):
     ])
 
     # summary
-    exist_num = len(glob.glob(config.log_dir))
-    log_dir = os.path.join(config.log_dir, f"{exist_num}")
-    os.makedirs(log_dir, exist_ok=True)
-    summary_writer = SummaryWriter(log_dir)
+    dirs = glob.glob(config.log_dir)
+    os.makedirs(config.log_dir, exist_ok=True)
+    summary_writer = SummaryWriter(f"{config.log_dir}/{len(dirs)}")
 
+    # process
     last_epoch = -1
     global_step = 0
-    best_iou = 0
-    best_step = 0
-    for epoch in range(last_epoch + 1, config.num_epochs):
+
+    # start training
+    for epoch in range(last_epoch+1, config.num_epochs):
 
         encoder.train()
         decoder.train()
 
-        with tqdm(enumerate(train_loader)) as tqdmLoader:
-            for local_step, (positions, occupancies, images) in tqdmLoader:
-                positions = positions.to(device)
-                occupancies = occupancies.to(device)
-                images = images.to(device)
+        avg_loss = []
+        for positions, occupancies, images in train_loader:
+            optimizer.zero_grad()
+            
+            # transport data
+            positions = positions.to(device)
+            occupancies = occupancies.to(device)
+            images = images.to(device)
 
-                conditions = encoder(images)
-                logits = decoder(positions, conditions)
-                loss = criterion(logits, occupancies)
+            # auto encoder
+            conditions = encoder(images)
+            logits = decoder(positions, conditions)
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+            # backward
+            loss = criterion(logits, occupancies)
+            loss.backward()
+            optimizer.step()
 
-                summary_writer.add_scalars(
-                    main_tag='loss',
-                    tag_scalar_dict=dict(training=loss),
-                    global_step=global_step
-                )
+            # metric
+            out = (logits > config.threshold).int()
+            gt = occupancies.int()
+            metric_outs = Metric.get(out, gt, metrics=['iou', 'pr'])
 
-                tqdmLoader.set_postfix(ordered_dict={
-                    "epoch": epoch,
-                    "global_step": global_step,
-                    "local_step": local_step,
-                    "loss": loss
-                })
+            # write to tensorboard
+            iou = metric_outs['iou']
+            prec, reca = metric_outs['pr']
+            summary_writer.add_scalars('loss', dict(train_loss=loss), global_step)
+            summary_writer.add_scalars('iou', dict(train_iou=iou), global_step)
+            summary_writer.add_scalars('pr', dict(train_prec=prec, train_reca=reca), global_step)
+            
+            # record
+            avg_loss.append(loss.item())
+            global_step += 1
 
-                global_step += 1
+        if (epoch + 1) % config.test_time == 0:
+            encoder.eval()
+            decoder.eval()
+            valid_loss = []
+            valid_iou = []
+            valid_prec, valid_reca = [], []
 
-                if global_step % config.test_time == 0:
-                    positions, occupancies, images = next(iter(valid_loader))
+            with torch.no_grad():
+                for positions, occupancies, images in tqdm(valid_loader):
+
+                    # transport data
                     positions = positions.to(device)
                     occupancies = occupancies.to(device)
                     images = images.to(device)
 
+                    # forward
                     conditions = encoder(images)
                     logits = decoder(positions, conditions)
+
+                    # metric
                     loss = criterion(logits, occupancies)
+                    out = (logits > config.threshold).int()
+                    gt = occupancies.int()
+                    metric_outs = Metric.get(out, gt, metrics=['iou', 'pr'])
 
-                    avg_iou = IoU(logits, occupancies).mean()
+                    # record
+                    iou = metric_outs['iou']
+                    prec, reca = metric_outs['pr']
+                    valid_loss.append(loss.item())
+                    valid_iou.append(iou)
+                    valid_prec.append(prec)
+                    valid_reca.append(reca)
+                
+            summary_writer.add_scalars('loss', dict(valid_loss=torch.mean(valid_loss)), global_step)
+            summary_writer.add_scalars('iou', dict(valid_iou=torch.mean(valid_iou)), global_step)
+            summary_writer.add_scalars('pr', dict(train_prec=torch.mean(valid_prec), train_reca=torch.mean(valid_reca)), global_step)
 
-                    summary_writer.add_scalars(
-                        main_tag='loss',
-                        tag_scalar_dict=dict(validating=loss),
-                        global_step=global_step
-                    )
+            avg_loss_ = torch.mean(avg_loss)
+            tqdm.write(f"Average Loss During Last {config.test_time: d} Epoch is {avg_loss_: .6f}")
 
-                    summary_writer.add_scalars(
-                        main_tag='IoU',
-                        tag_scalar_dict=dict(validating=avg_iou),
-                        global_step=global_step
-                    )
-                    print(f"[Val] Loss {loss.item(): .4f}, IoU {avg_iou: .2f}")
-
-                    if best_iou < avg_iou:
-                        best_iou = avg_iou
-                        best_step = global_step
-                        torch.save(encoder.state_dict(), os.path.join(config.ckpt_dir, "encoder_ckpt_best_.pt"))
-                        torch.save(decoder.state_dict(), os.path.join(config.ckpt_dir, "decoder_ckpt_best_.pt"))
+            os.makedirs(config.ckpt_dir, exist_ok=True)
+            torch.save(encoder.state_dict(), f"{config.ckpt_dir}/encoder_{epoch + 1: d}_.pt")
+            torch.save(decoder.state_dict(), f"{config.ckpt_dir}/decoder_{epoch + 1: d}_.pt")
 
     summary_writer.close()
-    print(f"Best Step {best_step}, Best IoU {best_iou}")
 
     os.makedirs(config.ckpt_dir, exist_ok=True)
-    torch.save(encoder.state_dict(), os.path.join(config.ckpt_dir, f"encoder_ckpt_{global_step}_.pt"))
-    torch.save(decoder.state_dict(), os.path.join(config.ckpt_dir, f"decoder_ckpt_{global_step}_.pt"))   
+    torch.save(encoder.state_dict(), f"{config.ckpt_dir}/encoder_{config.num_epochs: d}_.pt")
+    torch.save(decoder.state_dict(), f"{config.ckpt_dir}/decoder_{config.num_epochs: d}_.pt")  
 
 
 def eval(config):
     # device
     device = torch.device(config.device)
     # dataset
-    dataset, dataloader = load_dataset(config)
+    test_data, test_loader = load_dataset(config, mode='test')
 
     # model
     encoder = SingleImageEncoder().to(device)
@@ -183,25 +199,41 @@ def eval(config):
         )
     ).to(device)
 
-    encoder.load_state_dict(torch.load(os.path.join(config.ckpt_dir, f"encoder_ckpt_{config.ckpt_name}_.pt")))
-    decoder.load_state_dict(torch.load(os.path.join(config.ckpt_dir, f"decoder_ckpt_{config.ckpt_name}_.pt")))
+    # load checkpoints
+    encoder.load_state_dict(torch.load(f"{config.ckpt_dir}/encoder_{config.ckpt_name}_.pt"))
+    decoder.load_state_dict(torch.load(f"{config.ckpt_dir}/decoder_{config.ckpt_name}_.pt"))
 
+    # record
+    avg_iou = []
+    avg_prec = []
+    avg_reca = []
+
+    # start evaluating
     encoder.eval()
     decoder.eval()
-    avg_iou = 0
-    total_samples = 0
-    with tqdm(enumerate(dataloader)) as tqdmLoader:
-        for local_step, (positions, occupancies, images) in tqdmLoader:
-            
-            positions = positions.to(device)
-            occupancies = occupancies.to(device)
-            images = images.to(device)
+    for positions, occupancies, images in tqdm(test_loader):
 
-            conditions = encoder(images)
-            logits = decoder(positions, conditions)
-            logits = (logits > config.threshold).float()
+        # data transport
+        positions = positions.to(device)
+        occupancies = occupancies.to(device)
+        images = images.to(device)
 
-            avg_iou += IoU(logits, occupancies).sum()
-            total_samples += logits.shape[0]
+        # forward
+        conditions = encoder(images)
+        logits = decoder(positions, conditions)
 
-    print(f"[IoU] {avg_iou / total_samples: .2f}")
+        # metric
+        out = (logits > config.threshold).int()
+        gt = occupancies.int()
+        metric_outs = Metric.get(out, gt, metrics=['iou', 'pr'])
+
+        # record
+        iou = metric_outs['iou']
+        prec, reca = metric_outs['pr']
+        avg_iou.append(iou)
+        avg_prec.append(prec)
+        avg_reca.append(reca)
+
+    print(f"test iou {torch.mean(avg_iou): .2f}")
+    print(f"test precision {torch.mean(avg_prec): .2f}")
+    print(f"test recall {torch.mean(avg_reca): .2f}")

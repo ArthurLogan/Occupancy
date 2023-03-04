@@ -4,6 +4,7 @@
     "num_samples": 100000,
     "dataset": "shapenet",
     "ckpt_dir": "./ckpt",
+    "ckpt_name": 2000,
     "log_dir": "./log",
     "data_dir": "/mnt/data/logan/ShapeNet"
 }

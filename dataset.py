@@ -26,9 +26,10 @@ def load_dataset(config, mode):
 
 # iterable dataset
 class ShapeNet(Dataset):
-    def __init__(self, root, mode, num_samples=None):
+    def __init__(self, root, mode, num_samples):
         super().__init__()
         self.root = root
+        self.mode = mode
         self.num_samples = num_samples
 
         self.directories = []
@@ -50,7 +51,8 @@ class ShapeNet(Dataset):
         image = Image.open(np.random.choice(glob.glob(f"{dir}/img_choy2016/*.jpg"))).convert('RGB')
         image = np.array(image, dtype=np.float32)
 
-        if self.num_samples:
+        if self.mode in ['train', 'val']:
+            # at least half postive samples
             half_samples = self.num_samples // 2
 
             # near surface region samples
@@ -58,10 +60,9 @@ class ShapeNet(Dataset):
             if near_surface_indices.shape[0] <= half_samples:
                 indices_of_near_surface_indices = np.random.choice(near_surface_indices.shape[0], half_samples)
             else:
-                surface_positions = torch.tensor(positions[near_surface_indices])
-                surface_positions = surface_positions.unsqueeze(0)
+                surface_positions = torch.tensor(positions[near_surface_indices]).unsqueeze(0)
                 indices_of_near_surface_indices = farthest_point_sampler(surface_positions, half_samples).numpy()[0]
-                
+                    
             near_surface_indices = near_surface_indices[indices_of_near_surface_indices]
 
             # random samples
@@ -70,9 +71,12 @@ class ShapeNet(Dataset):
             # integrate indices
             indices = np.concatenate([near_surface_indices, random_indices], axis=0)
             indices = np.random.permutation(indices)
-
-            positions = positions[indices]
-            occupancies = occupancies[indices]
+        
+        else:
+            indices = np.random.choice(positions.shape[0], positions.shape[0], replace=False)
+        
+        positions = positions[indices]
+        occupancies = occupancies[indices]
         
         positions = np.transpose(positions)
         occupancies = np.transpose(occupancies)

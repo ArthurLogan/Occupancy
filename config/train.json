@@ -9,5 +9,7 @@
     "dataset": "shapenet",
     "ckpt_dir": "./ckpt",
     "log_dir": "./log",
-    "data_dir": "/mnt/data/logan/ShapeNet"
+    "data_dir": "/mnt/data/logan/ShapeNet",
+    "test_time": 100,
+    "threshold": 0.2
 }
