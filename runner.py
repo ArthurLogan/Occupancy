@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch import optim
+import numpy as np
 
 from tensorboardX import SummaryWriter
 
@@ -153,11 +154,11 @@ def train(config):
                     valid_prec.append(prec)
                     valid_reca.append(reca)
                 
-            summary_writer.add_scalars('loss', dict(valid_loss=torch.mean(valid_loss)), global_step)
-            summary_writer.add_scalars('iou', dict(valid_iou=torch.mean(valid_iou)), global_step)
-            summary_writer.add_scalars('pr', dict(train_prec=torch.mean(valid_prec), train_reca=torch.mean(valid_reca)), global_step)
+            summary_writer.add_scalars('loss', dict(valid_loss=np.mean(valid_loss)), global_step)
+            summary_writer.add_scalars('iou', dict(valid_iou=np.mean(valid_iou)), global_step)
+            summary_writer.add_scalars('pr', dict(train_prec=np.mean(valid_prec), train_reca=np.mean(valid_reca)), global_step)
 
-            avg_loss_ = torch.mean(avg_loss)
+            avg_loss_ = np.mean(avg_loss)
             tqdm.write(f"Average Loss During Last {config.test_time: d} Epoch is {avg_loss_: .6f}")
 
             os.makedirs(config.ckpt_dir, exist_ok=True)
@@ -234,6 +235,6 @@ def eval(config):
         avg_prec.append(prec)
         avg_reca.append(reca)
 
-    print(f"test iou {torch.mean(avg_iou): .2f}")
-    print(f"test precision {torch.mean(avg_prec): .2f}")
-    print(f"test recall {torch.mean(avg_reca): .2f}")
+    print(f"test iou {np.mean(avg_iou): .2f}")
+    print(f"test precision {np.mean(avg_prec): .2f}")
+    print(f"test recall {np.mean(avg_reca): .2f}")
