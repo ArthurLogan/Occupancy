@@ -88,7 +88,8 @@ def train(config):
         decoder.train()
 
         avg_loss = []
-        for positions, occupancies, images in train_loader:
+        loader = tqdm(train_loader)
+        for positions, occupancies, images in loader:
             optimizer.zero_grad()
             
             # transport data
@@ -120,6 +121,7 @@ def train(config):
             # record
             avg_loss.append(loss.item())
             global_step += 1
+            loader.set_postfix(dict(epoch=epoch, global_step=global_step))
 
         if (epoch + 1) % config.test_time == 0:
             encoder.eval()

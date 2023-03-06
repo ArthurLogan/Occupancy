@@ -7,7 +7,7 @@ from torchvision import models
 class SingleImageEncoder(nn.Module):
     def __init__(self):
         super().__init__()
-        model = models.resnet18(weights='DEFAULT')
+        model = models.resnet18(pretrained=True)
         self.encoder = nn.Sequential(
             *(list(model.children())[:-1]),
             nn.Conv2d(512, 256, kernel_size=1)
